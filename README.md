@@ -1,6 +1,6 @@
 # 📷 Computer vision license plate recognition
 
-This Python project uses the the CV2 computer vision library to detect and read license plates from a camera feed in real time and log the captured license plate numbers. Please note that this project is a proof of concept and is not for production use.
+This Python project uses the CV2 computer vision library to detect and read license plates from a camera feed in real time and log the captured license plate numbers. Please note that this project is a proof of concept and is not for production use.
 
 ## Installation
 1. Clone the repository:
