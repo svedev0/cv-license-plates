@@ -3,11 +3,6 @@ import cv2
 from pytesseract import pytesseract
 import datetime
 
-"""
-Download both Tesseract-OCR and haarcascade_frontalface_default.xml and place
-them in the root directory of this project.
-"""
-
 # Path to tesseract executable
 pytesseract.tesseract_cmd = "Tesseract-OCR\\tesseract.exe"
 
@@ -27,9 +22,11 @@ async def main():
         if not ret:
             continue
 
+        # Greyscale and gaussian blur to reduce noise
         greyscale = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         gaussian_blur = cv2.GaussianBlur(greyscale, (5, 5), 0)
 
+        # Canny edge detection
         edges = cv2.Canny(gaussian_blur, 50, 150)
         contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
