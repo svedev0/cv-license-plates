@@ -1,79 +1,73 @@
+import asyncio
 import cv2
 from pytesseract import pytesseract
 import datetime
 
-# Download Tesseract-OCR and place it in the root directory
-# Download haarcascade_frontalface_default.xml and place it in the root directory
+"""
+Download both Tesseract-OCR and haarcascade_frontalface_default.xml and place
+them in the root directory of this project.
+"""
 
 # Path to tesseract executable
 pytesseract.tesseract_cmd = "Tesseract-OCR\\tesseract.exe"
 
-log_file = "license_plates.txt"
+LOG_FILE = "license_plates.txt"
+CAPTURE = cv2.VideoCapture(0)
 
-# Create VideoCapture object for webcam
-capture = cv2.VideoCapture(0)
 
-# Loop until program is stopped
-while True:
-    # Read frame from webcam
-    ret, frame = capture.read()
+async def log_to_file(plate_num: str) -> None:
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open(LOG_FILE, "a+") as f:
+        f.write("{} {}\n".format(timestamp, plate_num))
 
-    # Convert frame to greyscale
-    grey = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-    # Apply gaussian blur to reduce noise
-    blur = cv2.GaussianBlur(grey, (5, 5), 0)
-
-    # Perform edge detection
-    edges = cv2.Canny(blur, 50, 150)
-
-    # Find contours in edges
-    contours, hierarchy = cv2.findContours(
-        edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
-    )
-
-    # Loop over contours
-    for contour in contours:
-        # Get contour area
-        area = cv2.contourArea(contour)
-
-        # Discard small contours
-        if area < 1000:
+async def main():
+    while CAPTURE.isOpened():
+        ret, frame = CAPTURE.read()
+        if not ret:
             continue
 
-        # Get bounding rectangle
-        x, y, w, h = cv2.boundingRect(contour)
+        greyscale = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gaussian_blur = cv2.GaussianBlur(greyscale, (5, 5), 0)
 
-        # Draw rectangle on frame
-        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 50), 2)
+        edges = cv2.Canny(gaussian_blur, 50, 150)
+        contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
-        # Extract license plate region
-        roi = grey[y : y + h, x : x + w]
+        for contour in contours:
+            area = cv2.contourArea(contour)
+            if area < 2000:
+                continue
 
-        # Perform thresholding
-        _, thresh = cv2.threshold(roi, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+            x, y, w, h = cv2.boundingRect(contour)
+            rect_color = (0, 255, 50)
+            rect_width = 3
+            cv2.rectangle(frame, (x, y), (x + w, y + h), rect_color, rect_width)
 
-        # Perform dilation to connect characters
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-        dilated = cv2.dilate(thresh, kernel, iterations=1)
+            license_plate_region = greyscale[y : y + h, x : x + w]
+            _, thresh = cv2.threshold(
+                license_plate_region, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
+            )
 
-        # Perform OCR on license plate region
-        plate_num = pytesseract.image_to_string(dilated, config="--psm 7")
+            # Dilation to connect characters
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+            dilated = cv2.dilate(thresh, kernel, iterations=1)
 
-        # Remove whitespace and non-alphanumeric characters
-        plate_num = "".join(e for e in plate_num if e.isalnum())
+            plate_num_raw = pytesseract.image_to_string(dilated, config="--psm 7")
+            plate_num = "".join(e for e in plate_num_raw if e.isalnum())
 
-        # If license plate number is detected, log it to file
-        if len(plate_num) == 6:
-            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            if len(plate_num) == 6:
+                # print(plate_num)
+                task = asyncio.create_task(log_to_file(plate_num))
+                await task
 
-            with open(log_file, "a+") as f:
-                f.write("{} {}\n".format(timestamp, plate_num))
+        cv2.imshow("License Plate Recognition", frame)
 
-    cv2.imshow("License Plate Recognition", frame)
+        if cv2.waitKey(1) == ord("q"):
+            break
 
-    if cv2.waitKey(1) == ord("q"):
-        break
+    CAPTURE.release()
+    cv2.destroyAllWindows()
 
-capture.release()
-cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    asyncio.run(main())
